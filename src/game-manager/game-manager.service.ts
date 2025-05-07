@@ -22,7 +22,7 @@ export class GameManagerService {
         }
         GameManagerService.RoomManager.set("randomId", new Room(player,maxPlayers,));
 
-        return "roomId";
+        return roomId;
     }
 
     removeRoom = (roomId: string) => {
@@ -30,7 +30,11 @@ export class GameManagerService {
     }
 
     addPlayerToRoom = (player: Player, roomId: string) => {
-        GameManagerService.RoomManager.get(roomId)?.addPlayers(player);
+        if (GameManagerService.RoomManager.has(roomId)) {
+            GameManagerService.RoomManager.get(roomId)?.addPlayers(player);
+            return true;
+        }
+        return false;
     }
 
     removePlayerFromRoom = (player: Player, roomId: string) => {

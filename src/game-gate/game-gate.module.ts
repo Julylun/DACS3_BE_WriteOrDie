@@ -7,6 +7,7 @@ import { PlayerModule } from 'src/player/player.module';
 
 @Module({
     imports: [GameManagerModule, AuthModule, PlayerModule],
-    providers:[GameGateService, GameManagerService]
+    providers:[GameGateService, GameManagerService],
+    exports: [GameGateService]
 })
 export class GameGateModule {}

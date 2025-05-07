@@ -5,16 +5,18 @@ import ResponseData from "src/common/response.dto";
 import WebsocketException from 'src/exceptions/websocket-exceptions/abstract/websocket.exception';
 
 @Catch(WebsocketException)
-export class WebsocketFilterException implements ExceptionFilter {
-    private readonly logger = new Logger(WebsocketFilterException.name);
+export class WebsocketExceptionFilter implements ExceptionFilter {
+    private readonly logger = new Logger(WebsocketExceptionFilter.name);
 
     catch(exception: WebsocketException, host: ArgumentsHost) {
+        this.logger.error(`Caught an Websocket exception`);
+
         const client: Socket = host.switchToWs().getClient();
 
         const statusCoode = exception.statusCode;
         const statusMessage = exception.statusMessage
         const exceptionResponse = exception.responseData;
-        const data = typeof exceptionResponse === 'string' ? exceptionResponse : exceptionResponse.toString();
+        const data = typeof exceptionResponse === 'string' ? exceptionResponse : exceptionResponse;
 
         let responseData = ResponseData.get({
             statusCode: statusCoode,
@@ -25,7 +27,7 @@ export class WebsocketFilterException implements ExceptionFilter {
             }
         })
 
-        client.emit(exception.event, ResponseData)
+        client.emit(exception.event, responseData)
         this.logger.error(`Caught an Websocket exception with informations: `, responseData);
     }
 }

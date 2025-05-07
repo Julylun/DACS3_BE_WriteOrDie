@@ -1,5 +1,6 @@
+import { IntrinsicException } from "@nestjs/common";
 
-export default abstract class WebsocketException extends Error {
+export default abstract class WebsocketException extends IntrinsicException {
     abstract readonly event: string;
     abstract readonly statusCode: number;
     abstract readonly statusMessage: string;
