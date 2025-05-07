@@ -10,8 +10,14 @@ export class PlayerService {
     ) { }
 
     create = async (playerDto: PlayerDto): Promise<Player> => {
-        const createdPlayer = new this.playerModel(playerDto)
-        return await createdPlayer.save();
+        let playerDocument;
+        try {
+            const createdPlayer = new this.playerModel(playerDto)
+            playerDocument = await createdPlayer.save();
+        } catch (error) {
+            throw error;
+        }
+        return playerDocument;
     }
 
     findAll = async (): Promise<Player[] | null> => {
@@ -19,7 +25,7 @@ export class PlayerService {
     }
 
     findOneByUsername = async (username: string): Promise<Player | null> => {
-        return await this.playerModel.findOne({ playerUserName: username}).exec();
+        return await this.playerModel.findOne({ playerUserName: username }).exec();
     }
 
     findOneByUUID = async (uuid: string): Promise<Player | null> => {

@@ -1,55 +1,39 @@
 import { Injectable } from '@nestjs/common';
-
-
-class Room {
-    static OWNER_NULL = -1;
-
-    private owner: string; //Chu phong
-    private maxPlayer: number; //Gioi han so nguoi tham gia discord
-    private currentPlayer: number; //So luong nguoi tham gia hien tai
-    private players: Set<string>; //Danh sach id cua nguoi choi
-
-
-    constructor() {
-        this.players = new Set<string>();
-    }
-
-    addPlayers = (playerId: string) => {
-        this.players.add(playerId);
-    }
-
-    removePlayers = (playerId: string) => {
-        this.players.delete(playerId);
-    }
-
-    setOwner = (player: string) => {
-        this.owner = player;
-    }
-}
+import { Player } from 'src/player/schemas/player.schema';
+import Room from './models/room.model';
+// const randomString = require('randomstring');
+import * as randomString from 'randomstring'
 
 @Injectable()
 export class GameManagerService {
-    readonly RoomManager = new Map<string, Room>();
+    static readonly RoomIdSet = new Set<string>();
+    static readonly RoomManager = new Map<string, Room>();
+    static readonly OnlineUsers = new Map<string, Player>(); 
+
     constructor() {
         
     }
 
-    createRoom = (playerId: any, maxPlayer: any, gameMode: any) => {
+    createRoom = (player: Player, maxPlayers: number, gameMode: any) => {
         //TODO: create random id generator here
-        this.RoomManager.set("randomId", new Room());
+        let roomId = randomString.generate();
+        while(GameManagerService.RoomIdSet.has(roomId)) {
+            roomId = randomString.generate(5);
+        }
+        GameManagerService.RoomManager.set("randomId", new Room(player,maxPlayers,));
 
         return "roomId";
     }
 
     removeRoom = (roomId: string) => {
-        this.RoomManager.delete("randomId");
+        GameManagerService.RoomManager.delete("randomId");
     }
 
-    addPlayerToRoom = (playerId: string, roomId: string) => {
-        this.RoomManager.get(roomId)?.addPlayers(playerId);
+    addPlayerToRoom = (player: Player, roomId: string) => {
+        GameManagerService.RoomManager.get(roomId)?.addPlayers(player);
     }
 
-    removePlayerFromRoom = (playerId: string, roomId: string) => {
-        this.RoomManager.get(roomId)?.removePlayers(playerId);
+    removePlayerFromRoom = (player: Player, roomId: string) => {
+        GameManagerService.RoomManager.get(roomId)?.removePlayers(player);
     }
 }  
