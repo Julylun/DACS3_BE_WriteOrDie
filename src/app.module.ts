@@ -16,17 +16,21 @@ import { APP_FILTER } from '@nestjs/core';
 import { HttpExceptionFilter } from './filter/HttpException.filter';
 import { SupertestModule } from './supertest/supertest.module';
 import { WebsocketExceptionFilter } from './filter/WebsocketException.filter';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true
+    }),
     MongooseModule.forRoot('mongodb://localhost/writeordie'),
-    PlayerModule, ChatModule, GameGateModule, GameManagerModule, AuthModule, SupertestModule
+    PlayerModule, GameGateModule, GameManagerModule, AuthModule, SupertestModule
   ],
   controllers: [AppController, PlayerController, AuthController],
   providers: [
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_FILTER, useClass: WebsocketExceptionFilter },
-    AppService, AuthService, GameManagerService, MessageGateway
+    AppService, AuthService, GameManagerService
   ],
 })
 export class AppModule { }

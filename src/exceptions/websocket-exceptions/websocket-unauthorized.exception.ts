@@ -1,6 +1,6 @@
 import WebsocketException from "./abstract/websocket.exception";
 
-export default class WebsocketUnauthorizedEuxepction extends WebsocketException {
+export default class WebsocketUnauthorizedExepction extends WebsocketException {
     responseData: string | Object;
     readonly event: string;
     readonly statusCode: number;
