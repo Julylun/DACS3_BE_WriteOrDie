@@ -6,7 +6,7 @@ export const GameGateEvent = {
         LeaveGameRoom: "LeaveGameRoomEvent",
         StartGame: "StartGameEvent",
         SendAnswer: "SendAnswerEvent",
-        JudgeAnswers: "JudgeAnswers"
+        JudgeAnswers: "JudgeAnswersEvent"
     },
     Debug: {
         GetGameStatus: "GetGameStatusEvent",

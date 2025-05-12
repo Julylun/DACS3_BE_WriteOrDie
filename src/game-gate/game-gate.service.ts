@@ -21,9 +21,24 @@ import { JoinGameGateServiceDto } from "./dto/joingamegateservice.dto";
 import { AddPlayerToRoomStatus } from "src/game-manager/enum/add-player-to-room.enum";
 import WebsocketForbiddenException from "src/exceptions/websocket-exceptions/websocket-forbidden.exception";
 import { GameGateEvent } from "./events/gamegate.event";
-import { send } from "process";
+import { ApiTags, ApiOperation, ApiResponse, ApiExtraModels } from '@nestjs/swagger';
+import { SendAnswerDto, JudgeAnswersDto, GetAvailableRoomDto, GetGameStatusDto, LeaveGameRoomDto } from './dto/websocket.dtos';
+import { RoomCreatedResponseDto, GameStatusResponseDto, BasicResponseDto } from './dto/response.dtos';
 
-
+@ApiTags('Game Gateway')
+@ApiExtraModels(
+    CreateRoomDto,
+    JoinRoomDto,
+    JoinGameGateServiceDto,
+    SendAnswerDto,
+    JudgeAnswersDto,
+    GetAvailableRoomDto,
+    GetGameStatusDto,
+    LeaveGameRoomDto,
+    RoomCreatedResponseDto,
+    GameStatusResponseDto,
+    BasicResponseDto
+)
 @WebSocketGateway({
     cors: {
         origin: '*'
@@ -52,6 +67,9 @@ export class GameGateService implements OnGatewayConnection, OnGatewayDisconnect
         this.logger.debug('[handleDisconnect]', (isSuccessful) ? `Successful - Removed <${client.id}> from Online map.` : `Failed - <${client.id}> doesnt exist in Online map.`)
     }
 
+    @ApiOperation({ summary: 'Join game gate service' })
+    @ApiResponse({ status: 200, description: 'Successfully joined game gate service', type: BasicResponseDto })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Invalid or expired token' })
     @UseFilters(WebsocketExceptionFilter)
     @UseGuards(WebsocketAuthGaurd)
     @SubscribeMessage('JoinGameGateService')
@@ -84,6 +102,9 @@ export class GameGateService implements OnGatewayConnection, OnGatewayDisconnect
         }
     }
 
+    @ApiOperation({ summary: 'Create a new game room' })
+    @ApiResponse({ status: 200, description: 'Room created successfully', type: RoomCreatedResponseDto })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Invalid or expired token' })
     @UseFilters(WebsocketExceptionFilter)
     @UseGuards(WebsocketAuthGaurd)
     @SubscribeMessage('CreateGameRoom')
@@ -111,6 +132,10 @@ export class GameGateService implements OnGatewayConnection, OnGatewayDisconnect
         }
     }
 
+    @ApiOperation({ summary: 'Join an existing game room' })
+    @ApiResponse({ status: 200, description: 'Successfully joined room', type: BasicResponseDto })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Invalid or expired token' })
+    @ApiResponse({ status: 404, description: 'Room not found or is full' })
     @UseFilters(WebsocketExceptionFilter)
     @UseGuards(WebsocketAuthGaurd)
     @SubscribeMessage('JoinGameRoom')
@@ -152,10 +177,13 @@ export class GameGateService implements OnGatewayConnection, OnGatewayDisconnect
         }
     }
 
+    @ApiOperation({ summary: 'Leave current game room' })
+    @ApiResponse({ status: 200, description: 'Successfully left room', type: BasicResponseDto })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Invalid or expired token' })
     @UseFilters(WebsocketExceptionFilter)
     @UseGuards(WebsocketAuthGaurd)
     @SubscribeMessage('LeaveGameRoom')
-    async handleLeaveGameRoom(@MessageBody() leaveGameRoomDto: {}, @ConnectedSocket() client: any) {
+    async handleLeaveGameRoom(@MessageBody() leaveGameRoomDto: LeaveGameRoomDto, @ConnectedSocket() client: any) {
         try {
             if (!client.user) throw new WebsocketUnauthorizedExepction('Unauthorized: Token is invalid or expired', GameGateEvent.Notification.LeaveGameRoom);
             const playerPayload = client.user as UserPayloadDto;
@@ -183,6 +211,10 @@ export class GameGateService implements OnGatewayConnection, OnGatewayDisconnect
     }
 
 
+    @ApiOperation({ summary: 'Start the game in current room' })
+    @ApiResponse({ status: 200, description: 'Game started successfully', type: BasicResponseDto })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Invalid or expired token' })
+    @ApiResponse({ status: 403, description: 'Forbidden - Not room owner' })
     @UseFilters(WebsocketExceptionFilter)
     @UseGuards(WebsocketAuthGaurd)
     @SubscribeMessage('StartGame')
@@ -200,7 +232,7 @@ export class GameGateService implements OnGatewayConnection, OnGatewayDisconnect
             const currentRoom = this.gameManagerService.playerIsAtRoom(player);
             this.logger.debug(`[h-StartGame]`, currentRoom)
             if (!currentRoom) throw new WebsocketNotFoundException('Not Found: Player is not at any room.', GameGateEvent.Notification.StartGame);
-            if (this.gameManagerService.isRoomOwner(player, currentRoom?.getRoomId())) throw new WebsocketForbiddenException('Forbidden: Player is not room ownwer', GameGateEvent.Notification.StartGame)
+            if (!this.gameManagerService.isRoomOwner(player, currentRoom?.getRoomId())) throw new WebsocketForbiddenException('Forbidden: Player is not room ownwer', GameGateEvent.Notification.StartGame)
             this.gameManagerService.startGame(currentRoom)
 
             this.logger.log(`[h-StartGame]`, `User ${client.id} started game at ${currentRoom?.getRoomId()} successfully!`)
@@ -217,10 +249,14 @@ export class GameGateService implements OnGatewayConnection, OnGatewayDisconnect
         }
     }
 
+    @ApiOperation({ summary: 'Send answer to current question' })
+    @ApiResponse({ status: 200, description: 'Answer sent successfully', type: BasicResponseDto })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Invalid or expired token' })
+    @ApiResponse({ status: 403, description: 'Forbidden - Already sent answer or not in room' })
     @UseFilters(WebsocketExceptionFilter)
     @UseGuards(WebsocketAuthGaurd)
     @SubscribeMessage('SendAnswer')
-    async handleSendAnswer(@MessageBody() sendAnswerDto: { answer: string }, @ConnectedSocket() client: any) {
+    async handleSendAnswer(@MessageBody() sendAnswerDto: SendAnswerDto, @ConnectedSocket() client: any) {
         let requestSession = randomString.generate(10);
         this.logger.log(`[h-SendAnswer]`, ` - User ${client.id} sent the answer "${sendAnswerDto.answer}"`)
         try {
@@ -243,10 +279,14 @@ export class GameGateService implements OnGatewayConnection, OnGatewayDisconnect
         }
     }
 
+    @ApiOperation({ summary: 'Judge answers in current game' })
+    @ApiResponse({ status: 200, description: 'Answers judged successfully', type: BasicResponseDto })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Invalid or expired token' })
+    @ApiResponse({ status: 403, description: 'Forbidden - Not in game room' })
     @UseFilters(WebsocketExceptionFilter)
     @UseGuards(WebsocketAuthGaurd)
     @SubscribeMessage('JudgeAnswers')
-    async handleJudgeAnswers(@MessageBody() sendAnswerDto: {}, @ConnectedSocket() client: any) {
+    async handleJudgeAnswers(@MessageBody() judgeAnswersDto: JudgeAnswersDto, @ConnectedSocket() client: any) {
         this.logger.log(`[h-JudgeAnswers]`, ` - User ${client.id} wants to start the game.`)
         try {
             if (!client.user) throw new WebsocketUnauthorizedExepction('Unauthorized: AccessToken is invalid or expired', GameGateEvent.Notification.JudgeAnswers)
@@ -256,11 +296,40 @@ export class GameGateService implements OnGatewayConnection, OnGatewayDisconnect
 
             //TODO: Doing
             const answer = await this.gameManagerService.judgeAnswer(player);
-            if(!answer) throw new WebsocketForbiddenException('Fobidden: Room doesn\'t exist or user did join any room.', GameGateEvent.Notification.JudgeAnswers);
+            if (!answer) throw new WebsocketForbiddenException('Fobidden: Room doesn\'t exist or user did join any room.', GameGateEvent.Notification.JudgeAnswers);
 
-            this.logger.debug(`[h-JudgeAnswers]`,answer);
+            this.logger.debug(`[h-JudgeAnswers]`, answer);
 
-            client.emit(GameGateEvent.Notification.JudgeAnswers, ResponseData.get({statusCode: 200, statusMessage: 'Ok', data: answer}))
+            client.emit(GameGateEvent.Notification.JudgeAnswers, ResponseData.get({ statusCode: 200, statusMessage: 'Ok', data: answer }))
+        } catch (error) {
+            if (error instanceof JsonWebTokenError || error instanceof TokenExpiredError)
+                throw new WebsocketUnauthorizedExepction('Token is wrong or expired', GameGateEvent.Notification.JudgeAnswers);
+            else if (error instanceof WebsocketException) throw error;
+            else {
+                let _error = new WebsocketInternalServerErrorException('Internal Server Error: Unknown error occured while executing user request', GameGateEvent.Notification.JudgeAnswers)
+                _error.responseData = { detailError: error.message }
+                throw _error
+            }
+        }
+    }
+
+    @ApiOperation({ summary: 'Get available game rooms' })
+    @ApiResponse({ status: 200, description: 'List of available rooms', type: GameStatusResponseDto })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Invalid or expired token' })
+    @UseFilters(WebsocketExceptionFilter)
+    @UseGuards(WebsocketAuthGaurd)
+    @SubscribeMessage('GetAvailableRoom')
+    async handleGetAvailableRooms(@MessageBody() getAvailableRoomDto: GetAvailableRoomDto, @ConnectedSocket() client: any) {
+        this.logger.log(`[h-GetAvailableRoom]`, ` - User ${client.id} is getting available room.`)
+        try {
+            if (!client.user) throw new WebsocketUnauthorizedExepction('Unauthorized: AccessToken is invalid or expired', GameGateEvent.Notification.JudgeAnswers)
+            const playerPlayload = client.user as UserPayloadDto;
+            const player = await this.playerService.findOneByUUID(playerPlayload.userUUID);
+            if (!player) throw new WebsocketUnauthorizedExepction('Unauthorized: Player account doesnt exist');
+
+
+            const rooms = this.gameManagerService.getRooms()
+            client.emit(GameGateEvent.Notification.JudgeAnswers, ResponseData.get({ statusCode: 200, statusMessage: 'Ok', data: rooms }))
         } catch (error) {
             if (error instanceof JsonWebTokenError || error instanceof TokenExpiredError)
                 throw new WebsocketUnauthorizedExepction('Token is wrong or expired', GameGateEvent.Notification.JudgeAnswers);
@@ -277,10 +346,10 @@ export class GameGateService implements OnGatewayConnection, OnGatewayDisconnect
 
 
 
-
-
     //DEBUGGGGGGGGGGGGGGG
 
+    @ApiOperation({ summary: 'Get current game status' })
+    @ApiResponse({ status: 200, description: 'Current game status', type: GameStatusResponseDto })
     @SubscribeMessage('GetGameStatus')
     async handleGetGameStatus(@ConnectedSocket() client: any) {
         try {

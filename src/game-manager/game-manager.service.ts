@@ -133,7 +133,7 @@ export class GameManagerService {
     isRoomOwner = (player: Player, roomId): boolean => {
         const room = GameManagerService.RoomManager.get(roomId);
         if (!room) return false;
-        return (player == room.getOwner());
+        return (player.playerUUID == room.getOwner().playerUUID);
     }
 
     getAllPlayerSocket = (roomId: string): Socket[] | undefined => {
@@ -191,6 +191,11 @@ export class GameManagerService {
                 roomId: room.getRoomId()
             }))
         }
+    }
+
+
+    getRooms = (): Array<Room> => {
+        return Array.from(GameManagerService.RoomManager.values());
     }
 
 
