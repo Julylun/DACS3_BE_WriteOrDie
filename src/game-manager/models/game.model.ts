@@ -5,6 +5,7 @@ import InstructionPrompt from "src/prompts/instruction.prompts"
 import AnswerPromt from "src/prompts/answer.prompts"
 import { InternalServerErrorException, Logger } from "@nestjs/common"
 import GameAnswer from "./GameAnswer.class"
+import Story from "./story.class"
 
 
 
@@ -13,10 +14,7 @@ const LLMService = {
     Judge: new Gemini(InstructionPrompt.JudgeAnswerPrompt())
 }
 
-class Story {
-    story: string;
-    task: string
-}
+
 
 export default class Game {
     private readonly logger = new Logger(Game.name)
@@ -56,7 +54,11 @@ export default class Game {
     addAnswer = (player: Player, answer: string): boolean => {
         let isDuplicated = false;
         this.answers.forEach(element => {
-            if (element.player == player) {isDuplicated = true; return}
+            if (element.player.playerUUID == player.playerUUID) {
+                this.logger.error('[addAnswer]','user sent answer');
+                isDuplicated = true;
+                return false
+            }
         })
         
         if(isDuplicated) return false;
@@ -64,14 +66,14 @@ export default class Game {
         return true;
     }
 
-    judgeAnswer = async () => {
-        const response = await LLMService.Judge.getResponse(AnswerPromt.JudgeAnswerPrompt(this.answers))
+    judgeAnswer = async (): Promise<object | undefined> => {
+        if (!this.instruction || !this.instruction.at(this.currentLevel)) return undefined;
+        const prompt = AnswerPromt.JudgeAnswerPrompt(this.answers, this.instruction.at(this.currentLevel))
+        
+        const response = (prompt) ? await LLMService.Judge.getResponse(prompt) : undefined
         const responseObject = Gemini.responseToObject(response);
 
-        this.logger.debug(responseObject)
-
-        responseObject.forEach(element => {
-            console.log(element)
-        })
+        this.logger.debug('judgeAnswer',responseObject)
+        return responseObject;
     }
 }

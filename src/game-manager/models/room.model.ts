@@ -1,6 +1,7 @@
 import { Player } from "src/player/schemas/player.schema";
 import { RoomStatus } from "../enum/roomstatus.enum";
 import Game from "./game.model";
+import { Logger } from "@nestjs/common";
 
 export default class Room {
     static OWNER_NULL = -1;
@@ -12,6 +13,8 @@ export default class Room {
     private game: Game | undefined;
 
     private roomStatus: RoomStatus
+
+    private readonly logger = new Logger(Room.name);
 
 
 
@@ -69,19 +72,23 @@ export default class Room {
         return this.players.size
     }
 
-    startGame = () => {
+    startGame = async () => {
         if (this.roomStatus == RoomStatus.Started) throw new Error('Game is started!');
         this.setRoomStatus(RoomStatus.Started)
         this.game = new Game(4, Array.from(this.players.values()))
-        this.game.autoGenerateInstructions(4);
+        await this.game.autoGenerateInstructions(4);
     }
 
     addAnswer = (player: Player, answer: string) => {
-        if(!this.game) return false;
+        if(!this.game) {
+            this.logger.error('[addAnswer]','Game doesnt initilize')
+            return false
+        };
         return this.game?.addAnswer(player, answer);
     }
 
-    judgeAnswer = () => {
-        this.game?.judgeAnswer();
+    judgeAnswer = (): undefined | object => {
+        if (this.roomStatus == RoomStatus.Waiting || !this.game) return undefined;
+        return this.game.judgeAnswer();
     }
 }

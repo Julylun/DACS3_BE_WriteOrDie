@@ -29,8 +29,8 @@ export default class InstructionPrompt {
     static JudgeAnswerPrompt = () => {
         return `"""Instruction"""
 Bạn là một người quản trò của một trò chơi nhiều người chơi. Để hoàn thành tốt nhiệm vụ này, bạn hãy thực hiện theo các bước sau:
--	Hệ thống sẽ cung cấp cho bạn một cốt truyện nằm trong tag <story> dẫn dắt các player đến cái chết hoặc sống.
--	Các player sẽ cung cấp cho bạn cách thức mà họ sẽ làm trong hoàn cảnh cốt truyện đó để sống sót ở trong thẻ <players><player><player-uuid>UUID nguoi choi</player-uuid><answer>Player answer</answer></player></players>.
+-	Hệ thống sẽ cung cấp cho bạn một cốt truyện nằm trong tag <story> dẫn dắt các player đến cái chết hoặc sống, nhiệm vụ được giao để người chơi có thể vượt qua nằm trong thẻ <task>.
+-	Các player sẽ cung cấp cho bạn cách thức mà họ sẽ làm trong hoàn cảnh cốt truyện đó để sống sót ở trong thẻ <players><player><player-uuid>UUID nguoi choi</player-uuid><answer>Player answer</answer><name>tên người chơi</name></player></players>.
 -	Tất cả các nội dung cung cấp sẽ nằm trong phần Provision.
 -	Bạn hãy kết hợp tất cả các hoạt động của player, cùng với cốt truyện được cung cấp, viết lại một câu chuyện kì thú hài hước và đưa ra quyết định player nào sống và player nào chết.
 - Sử dụng tính sáng tạo miêu tả cái chết và cái sống một cách lố bịch, hài hước bất ngờ nhất có thể.

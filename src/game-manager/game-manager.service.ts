@@ -80,10 +80,13 @@ export class GameManagerService {
     startGame(roomId: string)
     startGame(room: any) {
         if (room instanceof Room) {
-            room.setRoomStatus(RoomStatus.Started)
+            room.startGame();
+            return;
         }
         if (typeof room === 'string') {
-            GameManagerService.RoomManager.get(room)?.setRoomStatus(RoomStatus.Started)
+            const _room = GameManagerService.RoomManager.get(room);
+            _room?.startGame()
+            return
         }
         throw new Error('Wrong parameter type');
         //TODO: return value representing for error code
@@ -194,9 +197,19 @@ export class GameManagerService {
     //In-Game
     addAnswer = (player: Player, answer: string) => {
         const room = this.playerIsAtRoom(player)
-        if (!room || room.getStatus() == RoomStatus.Waiting) return false;
+        if (!room || room.getStatus() == RoomStatus.Waiting) {
+            this.logger.error('[addAnswer]',`room is not started or doesn\'t exist`)
+            return false;
+        }
 
         return room.addAnswer(player, answer);;
+    }
+
+    judgeAnswer = (player: Player): undefined | object => {
+        const room = this.playerIsAtRoom(player)
+
+        if (!room) return undefined;
+        return room.judgeAnswer();
     }
 
     //Room notify

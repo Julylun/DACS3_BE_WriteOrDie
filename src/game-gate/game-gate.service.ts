@@ -222,14 +222,15 @@ export class GameGateService implements OnGatewayConnection, OnGatewayDisconnect
     @SubscribeMessage('SendAnswer')
     async handleSendAnswer(@MessageBody() sendAnswerDto: { answer: string }, @ConnectedSocket() client: any) {
         let requestSession = randomString.generate(10);
-        this.logger.log(`[h-StartGame]`, ` - User ${client.id} wants to start the game.`)
+        this.logger.log(`[h-SendAnswer]`, ` - User ${client.id} sent the answer "${sendAnswerDto.answer}"`)
         try {
             if (!client.user) throw new WebsocketUnauthorizedExepction('Unauthorized: AccessToken is invalid or expired', GameGateEvent.Notification.SendAnswer)
             const playerPlayload = client.user as UserPayloadDto;
             const player = await this.playerService.findOneByUUID(playerPlayload.userUUID);
             if (!player) throw new WebsocketUnauthorizedExepction('Unauthorized: Player account doesnt exist');
 
-            this.gameManagerService.addAnswer(player, sendAnswerDto.answer)
+            const didSend = this.gameManagerService.addAnswer(player, sendAnswerDto.answer);
+            if (!didSend) throw new WebsocketForbiddenException('Sent answer or user doesn\'t exist in the room', GameGateEvent.Notification.SendAnswer)
         } catch (error) {
             if (error instanceof JsonWebTokenError || error instanceof TokenExpiredError)
                 throw new WebsocketUnauthorizedExepction('Token is wrong or expired', GameGateEvent.Notification.SendAnswer);
@@ -241,6 +242,38 @@ export class GameGateService implements OnGatewayConnection, OnGatewayDisconnect
             }
         }
     }
+
+    @UseFilters(WebsocketExceptionFilter)
+    @UseGuards(WebsocketAuthGaurd)
+    @SubscribeMessage('JudgeAnswers')
+    async handleJudgeAnswers(@MessageBody() sendAnswerDto: {}, @ConnectedSocket() client: any) {
+        this.logger.log(`[h-JudgeAnswers]`, ` - User ${client.id} wants to start the game.`)
+        try {
+            if (!client.user) throw new WebsocketUnauthorizedExepction('Unauthorized: AccessToken is invalid or expired', GameGateEvent.Notification.JudgeAnswers)
+            const playerPlayload = client.user as UserPayloadDto;
+            const player = await this.playerService.findOneByUUID(playerPlayload.userUUID);
+            if (!player) throw new WebsocketUnauthorizedExepction('Unauthorized: Player account doesnt exist');
+
+            //TODO: Doing
+            const answer = await this.gameManagerService.judgeAnswer(player);
+            if(!answer) throw new WebsocketForbiddenException('Fobidden: Room doesn\'t exist or user did join any room.', GameGateEvent.Notification.JudgeAnswers);
+
+            this.logger.debug(`[h-JudgeAnswers]`,answer);
+
+            client.emit(GameGateEvent.Notification.JudgeAnswers, ResponseData.get({statusCode: 200, statusMessage: 'Ok', data: answer}))
+        } catch (error) {
+            if (error instanceof JsonWebTokenError || error instanceof TokenExpiredError)
+                throw new WebsocketUnauthorizedExepction('Token is wrong or expired', GameGateEvent.Notification.JudgeAnswers);
+            else if (error instanceof WebsocketException) throw error;
+            else {
+                let _error = new WebsocketInternalServerErrorException('Internal Server Error: Unknown error occured while executing user request', GameGateEvent.Notification.JudgeAnswers)
+                _error.responseData = { detailError: error.message }
+                throw _error
+            }
+        }
+    }
+
+
 
 
 
