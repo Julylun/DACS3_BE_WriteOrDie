@@ -1,21 +1,24 @@
 import { Logger } from "@nestjs/common";
 import { MessageBody, OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit, SubscribeMessage, WebSocketGateway, WebSocketServer } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
+import JoinChatRoomDto from "./dto/joinchatroom.dto";
 
 
-@WebSocketGateway({
-})
-export class ChatService implements OnGatewayInit, OnGatewayConnection{
+@WebSocketGateway({})
+export class ChatService implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect{
     private readonly logger = new Logger(ChatService.name);
     @WebSocketServer() server: Server;
     constructor() {
         this.logger.debug('Initlize ChatService...')
     }
-
-
+    
     handleConnection(client: any, ...args: any[]) {
-        this.logger.log('[ChatService]:',`${client.id} has connected to the server.`)
+        this.logger.log('[ChatService]:',`User ${client.id} has connected to the Chat server.`)
     }
+    handleDisconnect(client: any) {
+        this.logger.log('[ChatService]:',`User ${client.id} has disconnected from the Chat server.`)
+    }
+    
     afterInit(server: Socket) {
         this.logger.log('[Chat Websocket]','Initilize completely!')
     }
@@ -23,9 +26,11 @@ export class ChatService implements OnGatewayInit, OnGatewayConnection{
 
     //Room chat
     @SubscribeMessage('joinChatRoom')
-    handleRoomConnection(@MessageBody() roomId: string, client: Socket) {
-        client.join(roomId);
-        console.log(`[ChatService]: User ${client.id} joined room ${roomId}`);
+    handleRoomConnection(@MessageBody() joinChatRoomDto: JoinChatRoomDto, client: Socket) {
+        console.log(`[ChatService]: User ${client.id} joined room ${joinChatRoomDto.roomId}`);
+
+        client.join(joinChatRoomDto.roomId.toString());
+        console.log(`[ChatService]: User ${client.id} joined room ${joinChatRoomDto.roomId}`);
     }
 
     @SubscribeMessage('messageChatRoom')

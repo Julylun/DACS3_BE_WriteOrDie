@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { GameManagerService } from './game-manager.service';
 
 @Module({
-  providers: [GameManagerService]
+  providers: [GameManagerService],
+  exports: [GameManagerService]
 })
 export class GameManagerModule {}

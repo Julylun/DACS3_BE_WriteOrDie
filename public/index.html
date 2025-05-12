@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game System Monitor</title>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f2f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .stat-item {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1a73e8;
+        }
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-waiting {
+            background-color: #e3f2fd;
+            color: #1976d2;
+        }
+        .status-started {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        .last-update {
+            text-align: right;
+            color: #666;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Game System Monitor</h1>
+        
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-number" id="totalRooms">0</div>
+                <div class="stat-label">Total Rooms</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="totalPlayers">0</div>
+                <div class="stat-label">Online Players</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Active Rooms</h2>
+            <table id="roomsTable">
+                <thead>
+                    <tr>
+                        <th>Room ID</th>
+                        <th>Owner</th>
+                        <th>Players</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>Online Players</h2>
+            <table id="playersTable">
+                <thead>
+                    <tr>
+                        <th>Player Name</th>
+                        <th>Socket ID</th>
+                        <th>Current Room</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="last-update" id="lastUpdate"></div>
+    </div>
+
+    <script>
+        const socket = io('ws://localhost:3100');
+        
+        function updateLastUpdate() {
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent = `Last updated: ${now.toLocaleTimeString()}`;
+        }
+
+        function updateRoomsTable(rooms) {
+            const tbody = document.querySelector('#roomsTable tbody');
+            tbody.innerHTML = '';
+            
+            rooms.details.forEach(room => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${room.id}</td>
+                    <td>${room.owner}</td>
+                    <td>${room.currentPlayers}/${room.maxPlayers}</td>
+                    <td><span class="status-badge status-${room.status}">${room.status}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updatePlayersTable(players, positions) {
+            const tbody = document.querySelector('#playersTable tbody');
+            tbody.innerHTML = '';
+            
+            players.list.forEach(player => {
+                const position = positions.find(p => p.playerUUID === player.playerUUID);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${player.playerName}</td>
+                    <td>${player.socketId}</td>
+                    <td>${position ? position.roomId : 'Not in room'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateStats(data) {
+            document.getElementById('totalRooms').textContent = data.rooms.total;
+            document.getElementById('totalPlayers').textContent = data.players.total;
+        }
+
+        function updateAll(data) {
+            updateStats(data);
+            updateRoomsTable(data.rooms);
+            updatePlayersTable(data.players, data.playerPositions);
+            updateLastUpdate();
+        }
+
+        // Request initial data
+        socket.emit('GetGameStatus');
+
+        // Listen for updates
+        socket.on('GetGameStatusEvent', (response) => {
+            if (response.statusCode === 200) {
+                console.log(response.data);
+                updateAll(response.data);
+            }
+        });
+
+        // Request updates every 5 seconds
+        setInterval(() => {
+            socket.emit('GetGameStatus');
+        }, 2000);
+    </script>
+</body>
+</html> 

@@ -17,6 +17,12 @@ export class Player {
     })
     playerUUID: string;
 
+    @Prop({
+        required: true,
+        unique: true,
+    })
+    playerEmail: string;
+
     @Prop()
     playerUserName: string;
 
