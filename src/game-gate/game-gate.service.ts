@@ -1,6 +1,6 @@
 import { HttpException, Injectable, InternalServerErrorException, Logger, UnauthorizedException, UseFilters, UseGuards } from "@nestjs/common";
-import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit, SubscribeMessage, WebSocketGateway } from "@nestjs/websockets";
-import { Socket } from "socket.io";
+import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit, SubscribeMessage, WebSocketGateway, WebSocketServer } from "@nestjs/websockets";
+import { Server, Socket } from "socket.io";
 import { GameManagerService } from "src/game-manager/game-manager.service";
 import CreateRoomDto from "./dto/createroom.dto";
 import { AuthService } from "src/auth/auth.service";
@@ -9,7 +9,6 @@ import { PlayerService } from "src/player/player.service";
 import UserPayloadDto from "src/auth/dto/UserPayload.dto";
 import JoinRoomDto from "./dto/joinroom.dto";
 import ResponseData from "src/common/response.dto";
-import FastRes from "src/common/FastRes";
 import WebsocketUnauthorizedExepction from "src/exceptions/websocket-exceptions/websocket-unauthorized.exception";
 import WebsocketException from "src/exceptions/websocket-exceptions/abstract/websocket.exception";
 import WebsocketInternalServerErrorException from "src/exceptions/websocket-exceptions/websocket-internalservererror.exception";
@@ -24,6 +23,7 @@ import { GameGateEvent } from "./events/gamegate.event";
 import { ApiTags, ApiOperation, ApiResponse, ApiExtraModels } from '@nestjs/swagger';
 import { SendAnswerDto, JudgeAnswersDto, GetAvailableRoomDto, GetGameStatusDto, LeaveGameRoomDto } from './dto/websocket.dtos';
 import { RoomCreatedResponseDto, GameStatusResponseDto, BasicResponseDto } from './dto/response.dtos';
+import SecretRoom from "./constants/message.constants";
 
 @ApiTags('Game Gateway')
 @ApiExtraModels(
@@ -46,8 +46,10 @@ import { RoomCreatedResponseDto, GameStatusResponseDto, BasicResponseDto } from 
 })
 @Injectable()
 export class GameGateService implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
+    @WebSocketServer()
+    private server: Server;
+
     private readonly logger = new Logger("GameGateService")
-    private server: any;
     constructor(
         private gameManagerService: GameManagerService,
         private authService: AuthService,
@@ -66,6 +68,11 @@ export class GameGateService implements OnGatewayConnection, OnGatewayDisconnect
         const isSuccessful = this.gameManagerService.removeOnlinePlayer(client);
         this.logger.debug('[handleDisconnect]', (isSuccessful) ? `Successful - Removed <${client.id}> from Online map.` : `Failed - <${client.id}> doesnt exist in Online map.`)
     }
+
+
+    // = = = = = = = ROOM  = = = = = = =
+
+
 
     @ApiOperation({ summary: 'Join game gate service' })
     @ApiResponse({ status: 200, description: 'Successfully joined game gate service', type: BasicResponseDto })
@@ -150,16 +157,19 @@ export class GameGateService implements OnGatewayConnection, OnGatewayDisconnect
             if (!player) throw new WebsocketUnauthorizedExepction('Unauthorized: The user account doesnt exist', GameGateEvent.Notification.JoinGameRoom);
 
 
-
+            const currentRoom = this.gameManagerService.playerIsAtRoom(player);
+            if (currentRoom) {
+                // throw new WebsocketNotFoundException('Forbidden: Player joined a room before', GameGateEvent.Notification.JoinGameRoom)
+            }
             //Join room and get room status to return to player.
-            const JoinRoomStatus = this.gameManagerService.addPlayerToRoom(player, joinRoomDto.roomId)
+            const roomData = this.gameManagerService.addPlayerToRoom(player, joinRoomDto.roomId);
 
-            switch (JoinRoomStatus) {
+            switch (roomData.roomStatus) {
                 case AddPlayerToRoomStatus.NotExist: throw new WebsocketNotFoundException('Not Found: Room doesnt exist', GameGateEvent.Notification.JoinGameRoom)
                 case AddPlayerToRoomStatus.RoomFull: throw new WebsocketNotFoundException('Not Found: Room is full', GameGateEvent.Notification.JoinGameRoom)
                 case AddPlayerToRoomStatus.Successful: {
-                    client.join(joinRoomDto.roomId);
-                    client.emit('JoinGameRoomEvent', ResponseData.get({ statusCode: 200, statusMessage: 'Ok' }));
+                    client.join(SecretRoom.getSecretRoom(joinRoomDto.roomId));
+                    client.emit('JoinGameRoomEvent', ResponseData.get({ statusCode: 200, statusMessage: 'Ok', data: { currentPlayer: roomData.currentPlayer, maxPlayer: roomData.maxPlayer } }));
                     break;
                 }
                 default: throw new WebsocketInternalServerErrorException('Internal Server Error: An unknown error occured while joining room', GameGateEvent.Notification.JoinGameRoom)
@@ -233,10 +243,48 @@ export class GameGateService implements OnGatewayConnection, OnGatewayDisconnect
             this.logger.debug(`[h-StartGame]`, currentRoom)
             if (!currentRoom) throw new WebsocketNotFoundException('Not Found: Player is not at any room.', GameGateEvent.Notification.StartGame);
             if (!this.gameManagerService.isRoomOwner(player, currentRoom?.getRoomId())) throw new WebsocketForbiddenException('Forbidden: Player is not room ownwer', GameGateEvent.Notification.StartGame)
-            this.gameManagerService.startGame(currentRoom)
+            const gameStory = await this.gameManagerService.startGame(currentRoom)
 
             this.logger.log(`[h-StartGame]`, `User ${client.id} started game at ${currentRoom?.getRoomId()} successfully!`)
-            //TODO: Send to clients started message
+
+            //Send a signal to clients to force them change GUI
+            const data = {
+                allowStart: true,
+                timeCounting: 240,
+                serverTime: new Date().toISOString(), //serverTime is used to reduce delay time between server and client,
+                gameStory: gameStory
+            }
+            this.server.to(SecretRoom.getSecretRoom(currentRoom.getRoomId())).emit('InGame', ResponseData.get({ statusCode: 200, statusMessage: 'Ok', data: data }))
+        } catch (error) {
+            if (error instanceof JsonWebTokenError || error instanceof TokenExpiredError)
+                throw new WebsocketUnauthorizedExepction('Token is wrong or expired', GameGateEvent.Notification.StartGame);
+            else if (error instanceof WebsocketException) throw error;
+            else {
+                let _error = new WebsocketInternalServerErrorException('Internal Server Error: Unknown error occured while executing user request', GameGateEvent.Notification.StartGame)
+                _error.responseData = { detailError: error.message }
+                throw _error
+            }
+        }
+    }
+
+    @UseFilters(WebsocketExceptionFilter)
+    @UseGuards(WebsocketAuthGaurd)
+    @SubscribeMessage('GetStory')
+    async handleGetStory(@MessageBody() getStoryDto: {}, @ConnectedSocket() client: any) {
+        this.logger.log(`[h-GetStory]`, ` - User ${client.id} wants to get the game story.`)
+        try {
+            if (!client.user) throw new WebsocketUnauthorizedExepction('Unauthorized: AccessToken is invalid or expired', GameGateEvent.Notification.StartGame)
+            const playerPlayload = client.user as UserPayloadDto;
+            const player = await this.playerService.findOneByUUID(playerPlayload.userUUID);
+            if (!player) throw new WebsocketUnauthorizedExepction('Unauthorized: Player account doesnt exist');
+
+
+            this.logger.debug(`[h-StartGame]`, `Getting user room location...`)
+            const currentRoom = this.gameManagerService.playerIsAtRoom(player);
+            this.logger.debug(`[h-StartGame]`, currentRoom)
+            if (!currentRoom) throw new WebsocketNotFoundException('Not Found: Player is not at any room.', GameGateEvent.Notification.StartGame);
+
+            client.emit('GetStoryEvent', ResponseData.get({ statusCode: 200, statusMessage: 'Ok', data: { story: currentRoom.getCurrentStory() } }))
         } catch (error) {
             if (error instanceof JsonWebTokenError || error instanceof TokenExpiredError)
                 throw new WebsocketUnauthorizedExepction('Token is wrong or expired', GameGateEvent.Notification.StartGame);
@@ -266,7 +314,20 @@ export class GameGateService implements OnGatewayConnection, OnGatewayDisconnect
             if (!player) throw new WebsocketUnauthorizedExepction('Unauthorized: Player account doesnt exist');
 
             const didSend = this.gameManagerService.addAnswer(player, sendAnswerDto.answer);
+
+
             if (!didSend) throw new WebsocketForbiddenException('Sent answer or user doesn\'t exist in the room', GameGateEvent.Notification.SendAnswer)
+            //TODO: Check number of sent answer
+            // If sent answer number is equal user number => judge answer
+            const room = this.gameManagerService.playerIsAtRoom(player);
+            if (room && this.gameManagerService.isEnoughAnswer(room)) {
+                const answer: any = await this.gameManagerService.judgeAnswer(player);
+                const resData = {
+                    type: 'DieTime',
+                    answer: answer.story
+                }
+                this.server.to(SecretRoom.getSecretRoom(room.getRoomId())).emit(GameGateEvent.InGame, ResponseData.get({ statusCode: 200, statusMessage: 'Ok', data: resData }))
+            }
         } catch (error) {
             if (error instanceof JsonWebTokenError || error instanceof TokenExpiredError)
                 throw new WebsocketUnauthorizedExepction('Token is wrong or expired', GameGateEvent.Notification.SendAnswer);
@@ -336,6 +397,36 @@ export class GameGateService implements OnGatewayConnection, OnGatewayDisconnect
             else if (error instanceof WebsocketException) throw error;
             else {
                 let _error = new WebsocketInternalServerErrorException('Internal Server Error: Unknown error occured while executing user request', GameGateEvent.Notification.JudgeAnswers)
+                _error.responseData = { detailError: error.message }
+                throw _error
+            }
+        }
+    }
+
+
+    // = = = = = = CHAT = = = = = = =
+    @UseFilters(WebsocketExceptionFilter)
+    @UseGuards(WebsocketAuthGaurd)
+    @SubscribeMessage('sendWaitingMessage')
+    async handleSendMessage(@MessageBody() handleSendMessageDto: { message: string }, @ConnectedSocket() client: any) {
+        this.logger.log(`[h-sendWaitingMessage]`, ` - User ${client.id} starts send message.`)
+        try {
+            if (!client.user) throw new WebsocketUnauthorizedExepction('Unauthorized: AccessToken is invalid or expired', GameGateEvent.Notification.SendWatingMessage)
+            const playerPlayload = client.user as UserPayloadDto;
+            const player = await this.playerService.findOneByUUID(playerPlayload.userUUID);
+            if (!player) throw new WebsocketUnauthorizedExepction('Unauthorized: Player account doesnt exist');
+
+            const room = this.gameManagerService.playerIsAtRoom(player);
+            if (!room) throw new WebsocketNotFoundException('Not Found: Player didn\'t join any room', GameGateEvent.Notification.SendWatingMessage);
+
+            const roomId = room.getRoomId();
+            this.server.to(SecretRoom.getSecretRoom(roomId)).emit('waitingMessageEvent', ResponseData.get({ statusCode: 200, statusMessage: 'Ok', data: { sender: player.playerUUID, message: handleSendMessageDto.message } }))
+        } catch (error) {
+            if (error instanceof JsonWebTokenError || error instanceof TokenExpiredError)
+                throw new WebsocketUnauthorizedExepction('Token is wrong or expired', GameGateEvent.Notification.SendWatingMessage);
+            else if (error instanceof WebsocketException) throw error;
+            else {
+                let _error = new WebsocketInternalServerErrorException('Internal Server Error: Unknown error occured while executing user request', GameGateEvent.Notification.SendWatingMessage)
                 _error.responseData = { detailError: error.message }
                 throw _error
             }

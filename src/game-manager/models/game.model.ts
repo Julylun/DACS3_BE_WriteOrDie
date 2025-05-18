@@ -32,6 +32,7 @@ export default class Game {
         this.GameId = randomString.generate(4);
         this.MaxLevel = (maxLevel >= 0 && maxLevel <= 10) ? maxLevel : -1;
         if(this.MaxLevel == -1) throw new Error('Max level must be bigger than 0 and smaller than 10.');
+        this.currentLevel = 0;
 
         this.players = players;
         this.alives = players;
@@ -47,7 +48,7 @@ export default class Game {
 
     autoGenerateInstructions = async (numberOfInstructions: number, genre: string[] = ["random"]) => {
         let response = await LLMService.StoryGenerator.getResponse(AnswerPromt.StoryAnswerPrompt(numberOfInstructions,genre));
-        if(response) this.instruction = Gemini.responseToObject(response).stories as Story[];
+        if(response) { this.instruction = Gemini.responseToObject(response).stories as Story[]; return this.instruction}
         else throw Error('Can\'t generate instruction.')
     }
 
@@ -64,6 +65,10 @@ export default class Game {
         if(isDuplicated) return false;
         this.answers.push(new GameAnswer(player, answer));
         return true;
+    }
+
+    getAnswers = () => {
+        return this.answers;
     }
 
     judgeAnswer = async (): Promise<object | undefined> => {
