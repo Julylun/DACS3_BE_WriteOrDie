@@ -59,7 +59,8 @@ export class AuthController {
             let loggedAccount = await this.authService.login(loginDto);
             const dataPack = {
                 accessToken: this.authService.generateAccessToken({ userUUID: loggedAccount.playerUUID, userName: loggedAccount.playerUserName }),
-                refreshToken: this.authService.generateRefreshToken({ userUUID: loggedAccount.playerUUID, userName: loggedAccount.playerUserName })
+                refreshToken: this.authService.generateRefreshToken({ userUUID: loggedAccount.playerUUID, userName: loggedAccount.playerUserName }),
+                uuid: loggedAccount.playerUUID
             }
             this.logger.debug('Login successfully');
             this.logger.debug('Account info: ', loggedAccount);

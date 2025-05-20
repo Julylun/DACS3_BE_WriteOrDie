@@ -102,6 +102,13 @@ export default class Room {
 
     getCurrentStory = (): string => {
         const story = this.game?.instruction[this.game.currentLevel];
-        return story?.story + '. Nhiem vu cua ban la: ' + story?.task;
+        return story?.story + ' Nhiem vu cua ban la: ' + story?.task;
+    }
+
+    nextLevel = (): boolean => {
+        //TODO: check level condition
+        const status = this.game?.nextLevel();
+        if (status) return true;
+        return false;
     }
 }

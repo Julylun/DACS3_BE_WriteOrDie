@@ -24,6 +24,7 @@ export class GameManagerService {
     }
 
 
+
     //Online Map
     setOnlinePlayer = (client: Socket, player: Player) => {
         GameManagerService.OnlineUsers.set(client, player);
@@ -105,14 +106,14 @@ export class GameManagerService {
         GameManagerService.RoomManager.get(roomId)?.setRoomStatus(RoomStatus.Waiting)
     }
 
-    createRoom = (player: Player, maxPlayers: number, gameMode: any) => {
+    createRoom = (player: Player, maxPlayers: number, gameMode: any): Room | undefined => {
         let roomId = randomString.generate();
         while (GameManagerService.RoomIdSet.has(roomId)) {
             roomId = randomString.generate(5);
         }
         GameManagerService.RoomManager.set(roomId, new Room(player, maxPlayers, roomId));
 
-        return roomId;
+        return GameManagerService.RoomManager.get(roomId);
     }
 
     removeRoom = (roomId: string) => {
@@ -223,6 +224,10 @@ export class GameManagerService {
 
         if (!room) return undefined;
         return room.judgeAnswer();
+    }
+
+    nextLevel = (room: Room): boolean => {
+        return room.nextLevel();
     }
 
     //Room notify

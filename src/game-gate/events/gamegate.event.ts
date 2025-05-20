@@ -7,8 +7,9 @@ export const GameGateEvent = {
         StartGame: "StartGameEvent",
         SendAnswer: "SendAnswerEvent",
         JudgeAnswers: "JudgeAnswersEvent",
-
-        SendWatingMessage: "SendWaitingMessage"
+        SendWatingMessage: "SendWaitingMessage",
+        GetAvailableRoom: "GetAvailableRoomEvent",
+        GetRoomInfo: "GetRoomInfoEvent"
     },
     Debug: {
         GetGameStatus: "GetGameStatusEvent",

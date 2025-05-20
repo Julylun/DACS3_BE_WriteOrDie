@@ -17,11 +17,11 @@ export class WebsocketAuthGaurd implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const client: Socket = context.switchToWs().getClient();
     const authString: string = (client.handshake.auth.AccessToken) ? client.handshake.auth.accesstoken : (client.handshake.headers.authorization) ? client.handshake.headers.authorization : client.handshake.headers.accesstoken;
-    this.logger.debug('authString', authString.split(' '))
+    // this.logger.debug('authString', authString.split(' '))
     if (!authString) throw new WebsocketUnauthorizedExepction('Unauthorized: Missing access token,', undefined);
 
     let token = (authString[0] == 'B') ? authString.split(' ')[1] : authString;
-    this.logger.debug('token', token)
+    // this.logger.debug('token', token)
 
     if (!token) throw new WebsocketUnauthorizedExepction('Unauthorized: Missing access token,', undefined);
     try {
