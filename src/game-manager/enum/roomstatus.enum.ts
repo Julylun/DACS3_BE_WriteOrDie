@@ -1,4 +1,5 @@
 export enum RoomStatus {
     Waiting,
-    Started
+    Started,
+    DoneLevel
 }

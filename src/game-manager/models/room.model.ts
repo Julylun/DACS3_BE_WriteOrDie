@@ -65,7 +65,7 @@ export default class Room {
     }
 
     isFull(): boolean {
-        return (this.players.size >= this.maxPlayers)
+        return (this.getCurrentPlayer() >= this.getMaxPlayer())
     }
 
     getCurrentPlayer = (): number => {
@@ -76,7 +76,9 @@ export default class Room {
         if (this.roomStatus == RoomStatus.Started) throw new Error('Game is started!');
         this.setRoomStatus(RoomStatus.Started)
         this.game = new Game(4, Array.from(this.players.values()))
-        await this.game.autoGenerateInstructions(4);
+        return await this.game.autoGenerateInstructions(4);
+
+        this.logger.debug('[Room]','Initialized game story!')
     }
 
     addAnswer = (player: Player, answer: string) => {
@@ -87,8 +89,26 @@ export default class Room {
         return this.game?.addAnswer(player, answer);
     }
 
+    isEnoughAnswer = (): boolean => {
+        this.logger.debug('isEnoughAnswer', this.game?.getAnswers().length + ' ' + this,this.getMaxPlayer())
+        if(!this.game) return false;
+        return this.game?.getAnswers().length >= this.game.players.length
+    }
+
     judgeAnswer = (): undefined | object => {
         if (this.roomStatus == RoomStatus.Waiting || !this.game) return undefined;
         return this.game.judgeAnswer();
+    }
+
+    getCurrentStory = (): string => {
+        const story = this.game?.instruction[this.game.currentLevel];
+        return story?.story + ' Nhiem vu cua ban la: ' + story?.task;
+    }
+
+    nextLevel = (): boolean => {
+        //TODO: check level condition
+        const status = this.game?.nextLevel();
+        if (status) return true;
+        return false;
     }
 }

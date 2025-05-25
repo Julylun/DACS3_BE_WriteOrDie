@@ -24,6 +24,7 @@ export class GameManagerService {
     }
 
 
+
     //Online Map
     setOnlinePlayer = (client: Socket, player: Player) => {
         GameManagerService.OnlineUsers.set(client, player);
@@ -73,20 +74,28 @@ export class GameManagerService {
         } else throw new TypeError('Parameter must be Player or Socket');
     }
 
-
+    isEnoughAnswer(room: Room): boolean
+    isEnoughAnswer(player: Player): boolean
+    isEnoughAnswer(param: any): boolean {
+        if (param instanceof Room) {
+            return param.isEnoughAnswer();
+        } else if (param instanceof Player) {
+            const room = this.playerIsAtRoom(param);
+            if (!room) return false;
+            return room.isEnoughAnswer() ;
+        } else throw Error("isEnoughAsnwer: Wrong param");
+    }
 
     //Room Map
-    startGame(room: Room)
-    startGame(roomId: string)
-    startGame(room: any) {
+    async startGame(room: Room)
+    async startGame(roomId: string)
+    async startGame(room: any) {
         if (room instanceof Room) {
-            room.startGame();
-            return;
+            return await room.startGame();
         }
         if (typeof room === 'string') {
             const _room = GameManagerService.RoomManager.get(room);
-            _room?.startGame()
-            return
+            return await _room?.startGame()
         }
         throw new Error('Wrong parameter type');
         //TODO: return value representing for error code
@@ -97,14 +106,14 @@ export class GameManagerService {
         GameManagerService.RoomManager.get(roomId)?.setRoomStatus(RoomStatus.Waiting)
     }
 
-    createRoom = (player: Player, maxPlayers: number, gameMode: any) => {
+    createRoom = (player: Player, maxPlayers: number, gameMode: any): Room | undefined => {
         let roomId = randomString.generate();
         while (GameManagerService.RoomIdSet.has(roomId)) {
             roomId = randomString.generate(5);
         }
         GameManagerService.RoomManager.set(roomId, new Room(player, maxPlayers, roomId));
 
-        return roomId;
+        return GameManagerService.RoomManager.get(roomId);
     }
 
     removeRoom = (roomId: string) => {
@@ -112,17 +121,17 @@ export class GameManagerService {
         GameManagerService.RoomManager.delete(roomId);
     }
 
-    addPlayerToRoom = (player: Player, roomId: string): AddPlayerToRoomStatus => {
+    addPlayerToRoom = (player: Player, roomId: string): any => {
         const room = GameManagerService.RoomManager.get(roomId);
-        if (!room) return AddPlayerToRoomStatus.NotExist;
-
-        if (room.isFull()) return AddPlayerToRoomStatus.RoomFull;
+        if (!room) return {roomStatus: AddPlayerToRoomStatus.NotExist};
+        if (room.isFull()) return {roomStatus: AddPlayerToRoomStatus.RoomFull};
+        
         room.addPlayers(player);
         GameManagerService.PlayerPositionManager.set(player, room);
 
         this.logger.log('[addPlayerToRoom]', `Added ${player.playerUserName} to the room ${room.getRoomId()}.`)
         this.logger.log(`[addPlayerToRoom]`, `<||Current Room status||> |Room id: ${room.getRoomId()}|  |player: ${room.getCurrentPlayer.length}/${room.getMaxPlayer()}|   |Room status: ${room.getStatus()}|`);
-        return AddPlayerToRoomStatus.Successful;
+        return {roomStatus: AddPlayerToRoomStatus.Successful, currentPlayer: room.getCurrentPlayer(), maxPlayer: room.getMaxPlayer()};
     }
 
     removePlayerFromRoom = (player: Player, roomId: string) => {
@@ -215,6 +224,10 @@ export class GameManagerService {
 
         if (!room) return undefined;
         return room.judgeAnswer();
+    }
+
+    nextLevel = (room: Room): boolean => {
+        return room.nextLevel();
     }
 
     //Room notify
